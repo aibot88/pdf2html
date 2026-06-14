@@ -271,9 +271,11 @@ body {
 /* Preview */
 .html-preview {
     padding: 2rem;
-    max-height: 600px;
+    max-height: 700px;
     overflow-y: auto;
     font-size: 14px;
+    background: white;
+    color: #1a1a1a;
 }
 
 .html-preview .paper-container {
@@ -475,11 +477,18 @@ code {
     text-indent: -1.5em;
 }
 
-.paper-container .table-caption {
-    font-size: 0.9em;
-    font-weight: bold;
-    margin-top: 1em;
-    margin-bottom: 0.25em;
+.paper-container .code-block {
+    font-family: 'Courier New', 'Consolas', monospace;
+    font-size: 0.82em;
+    background: #f8f8f8;
+    border: 1px solid #e0e0e0;
+    border-radius: 3px;
+    padding: 0.8em 1em;
+    margin: 1em 0;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    text-indent: 0;
 }
 
 @media (max-width: 768px) {
