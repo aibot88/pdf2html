@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to HTML - Academic Paper Converter</title>
+    <link rel="stylesheet" href="assets/style.css">
+    <!-- Highlight.js for code preview -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- FileSaver for downloads -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <h1>PDF to HTML</h1>
+            <p class="subtitle">ACM / IEEE 学术论文 PDF → 结构化 HTML</p>
+        </header>
+
+        <!-- Upload Area -->
+        <div id="dropZone" class="drop-zone">
+            <div class="drop-zone-content">
+                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <p>拖拽 PDF 文件到此处，或 <label for="fileInput" class="file-label">点击选择</label></p>
+                <input type="file" id="fileInput" accept=".pdf" hidden>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div id="controls" class="controls hidden">
+            <div class="control-row">
+                <div class="control-group">
+                    <label>页面范围</label>
+                    <input type="text" id="pageRange" placeholder="如 1-5, 8, 10-12" value="">
+                </div>
+                <div class="control-group">
+                    <label>布局模式</label>
+                    <select id="layoutMode">
+                        <option value="auto">自动检测</option>
+                        <option value="single">单栏</option>
+                        <option value="double">双栏</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>字号阈值</label>
+                    <input type="range" id="fontThreshold" min="12" max="24" value="16" step="1">
+                    <span id="fontThresholdVal">16px</span>
+                </div>
+                <div class="control-group actions">
+                    <button id="btnConvert" class="btn btn-primary">开始转换</button>
+                    <button id="btnReset" class="btn btn-secondary">重置</button>
+                </div>
+            </div>
+            <div class="progress-bar hidden" id="progressBar">
+                <div class="progress-fill" id="progressFill"></div>
+                <span class="progress-text" id="progressText">准备中...</span>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results" class="results hidden">
+            <div class="tabs">
+                <button class="tab active" data-tab="preview">预览</button>
+                <button class="tab" data-tab="source">HTML 源码</button>
+                <button class="tab" data-tab="compare">对比</button>
+            </div>
+            <div class="tab-content">
+                <div id="tabPreview" class="tab-pane active">
+                    <div id="htmlPreview" class="html-preview"></div>
+                </div>
+                <div id="tabSource" class="tab-pane">
+                    <div class="source-toolbar">
+                        <button id="btnCopyHtml" class="btn btn-small">复制 HTML</button>
+                        <button id="btnDownloadHtml" class="btn btn-small">下载 .html</button>
+                        <button id="btnDownloadWithAssets" class="btn btn-small">下载 (含资源)</button>
+                    </div>
+                    <pre><code id="htmlSource" class="language-html"></code></pre>
+                </div>
+                <div id="tabCompare" class="tab-pane">
+                    <div class="compare-container">
+                        <div class="compare-panel">
+                            <h3>原始 PDF 渲染</h3>
+                            <div id="pdfRender" class="pdf-render"></div>
+                        </div>
+                        <div class="compare-panel">
+                            <h3>转换结果</h3>
+                            <div id="htmlRender" class="html-render"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div id="stats" class="stats hidden">
+            <div class="stat-item">
+                <span class="stat-label">总页数</span>
+                <span class="stat-value" id="statPages">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">提取文本块</span>
+                <span class="stat-value" id="statBlocks">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">检测栏数</span>
+                <span class="stat-value" id="statColumns">0</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">耗时</span>
+                <span class="stat-value" id="statTime">0ms</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+
+    <script src="assets/app.js"></script>
+</body>
+</html>
