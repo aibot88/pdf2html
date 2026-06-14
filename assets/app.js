@@ -138,10 +138,12 @@
             .map(item => {
                 const tx = item.transform;
                 const fontSize = Math.abs(tx[3]);
-                const isBold = item.fontName?.includes('Bold') || item.fontName?.includes('bold');
-                const isItalic = item.fontName?.includes('Italic') || item.fontName?.includes('italic');
-                const isMono = item.fontName?.includes('t1x') || item.fontName?.includes('Mono') ||
-                    item.fontName?.includes('Courier') || item.fontName?.includes('Consol');
+                // PDF flags: bit 4 (16) = bold, bit 1 (2) = italic, bit 3 (8) = monospace
+                const fn = (item.fontName || '').toLowerCase();
+                const isBold = fn.includes('bold') || fn.includes('medi');
+                const isItalic = fn.includes('italic') || fn.includes('ital');
+                const isMono = fn.includes('t1x') || fn.includes('mono') ||
+                    fn.includes('courier') || fn.includes('consol');
 
                 return {
                     text: item.str,
@@ -194,12 +196,19 @@
     }
 
     function detectColumnGap(items, pageWidth) {
+        // Use only body-text-sized items for gap detection (filter out title, headers)
+        const bodyItems = items.filter(i => i.fontSize < 12 && i.width < pageWidth * 0.5);
+        if (bodyItems.length < 10) {
+            // Fallback: assume standard ACM/IEEE layout
+            return { left: pageWidth * 0.48, right: pageWidth * 0.52, mid: pageWidth / 2 };
+        }
+
         // Find the gap between columns by looking at x-coordinate distribution
         const midX = pageWidth / 2;
         let leftMax = 0;
         let rightMin = pageWidth;
 
-        for (const item of items) {
+        for (const item of bodyItems) {
             if (item.x < midX) {
                 leftMax = Math.max(leftMax, item.x + item.width);
             } else {
@@ -207,7 +216,11 @@
             }
         }
 
-        // The gap is between leftMax and rightMin
+        // Ensure gap is reasonable
+        if (leftMax >= rightMin) {
+            return { left: pageWidth * 0.48, right: pageWidth * 0.52, mid: pageWidth / 2 };
+        }
+
         return { left: leftMax, right: rightMin, mid: (leftMax + rightMin) / 2 };
     }
 
@@ -230,8 +243,6 @@
     function processPage(items, pageNum, pageWidth, pageHeight, colCount, colGap) {
         if (items.length === 0) return [];
 
-        // Step 1: Group items into lines
-        // For double-column, we need to separate items by column first
         if (colCount === 2) {
             return processPageDoubleColumn(items, pageNum, pageWidth, pageHeight, colGap);
         } else {
@@ -240,47 +251,50 @@
     }
 
     function processPageSingleColumn(items, pageNum, pageWidth, pageHeight) {
-        items.sort((a, b) => a.y - b.y || a.x - b.x);
-        const lines = groupItemsIntoLines(items);
+        const lines = groupItemsIntoLines(sortByY(items));
         return lines.map(line => lineToBlock(line, pageNum, pageWidth, 'full'));
     }
 
     function processPageDoubleColumn(items, pageNum, pageWidth, pageHeight, colGap) {
-        const midX = colGap.mid;
+        // Step 1: Group ALL items into lines (regardless of column)
+        const allLines = groupItemsIntoLines(sortByY(items));
 
-        // Classify items into left, right, or spanning
-        const leftItems = [];
-        const rightItems = [];
-        const spanningItems = [];
+        // Step 2: Classify each line
+        const fullLines = [];
+        const leftLines = [];
+        const rightLines = [];
 
-        for (const item of items) {
-            const itemLeft = item.x;
-            const itemRight = item.x + item.width;
+        for (const line of allLines) {
+            const lineLeft = line.x;
+            const lineRight = line.x + line.width;
 
-            // Check if item spans across the column gap
-            if (itemLeft < colGap.left - 5 && itemRight > colGap.right + 5) {
-                spanningItems.push(item);
-            } else if (itemLeft < midX) {
-                leftItems.push(item);
+            // Check if line spans the column gap
+            if (lineLeft < colGap.left - 10 && lineRight > colGap.right + 10) {
+                fullLines.push(line);
+            }
+            // Line is entirely in right column
+            else if (lineLeft >= colGap.mid - 20) {
+                rightLines.push(line);
+            }
+            // Line is entirely in left column
+            else if (lineRight <= colGap.mid + 20) {
+                leftLines.push(line);
+            }
+            // Line starts in left but extends into gap → treat as left column
+            else if (lineLeft < colGap.mid) {
+                leftLines.push(line);
             } else {
-                rightItems.push(item);
+                rightLines.push(line);
             }
         }
 
-        // Process spanning items first (title, authors, abstract)
-        const spanningLines = groupItemsIntoLines(sortByY(spanningItems));
-        const spanningBlocks = spanningLines.map(line => lineToBlock(line, pageNum, pageWidth, 'full'));
-
-        // Process left column
-        const leftLines = groupItemsIntoLines(sortByY(leftItems));
+        // Step 3: Convert to blocks
+        const fullBlocks = fullLines.map(line => lineToBlock(line, pageNum, pageWidth, 'full'));
         const leftBlocks = leftLines.map(line => lineToBlock(line, pageNum, pageWidth, 'left'));
-
-        // Process right column
-        const rightLines = groupItemsIntoLines(sortByY(rightItems));
         const rightBlocks = rightLines.map(line => lineToBlock(line, pageNum, pageWidth, 'right'));
 
-        // Merge: spanning first, then left column, then right column
-        return [...spanningBlocks, ...leftBlocks, ...rightBlocks];
+        // Step 4: Merge in reading order: full-width first, then left, then right
+        return [...fullBlocks, ...leftBlocks, ...rightBlocks];
     }
 
     function sortByY(items) {
@@ -506,12 +520,13 @@
     }
 
     function isSectionHeading(text, isBold) {
+        if (!isBold) return false;
         // Numbered sections: "1. Introduction", "2. Background", "3.1 Details"
-        if (/^\d+(\.\d+)*\.?\s+[A-Z]/.test(text)) return true;
+        if (/^\d+(\.\d+)*\.?\s+[A-Z][a-zA-Z]{2,}/.test(text)) return true;
         // Roman numeral sections: "I. INTRODUCTION", "II. RELATED WORK"
-        if (/^[IVX]+\.?\s+[A-Z]/.test(text)) return true;
+        if (/^[IVX]+\.?\s+[A-Z][a-zA-Z]{2,}/.test(text)) return true;
         // Bold uppercase short text (common in ACM papers): "INTRODUCTION", "RELATED WORK"
-        if (isBold && text.length < 50 && text === text.toUpperCase() && /^[A-Z]/.test(text)) return true;
+        if (text.length >= 5 && text.length < 50 && text === text.toUpperCase() && /^[A-Z]/.test(text)) return true;
         return false;
     }
 
