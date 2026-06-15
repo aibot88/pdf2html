@@ -389,8 +389,9 @@
             return { title: '', authors: [], abstract: '', sections: [], references: '', totalBlocks: 0 };
         }
 
-        // Sort blocks by page, then y position
-        blocks.sort((a, b) => a.page - b.page || a.y - b.y);
+        // DO NOT re-sort by y-position — blocks are already in correct
+        // reading order from processPageDoubleColumn: full → left → right
+        // Sorting by y would mix columns and break structure detection.
 
         // Compute font size statistics (excluding code blocks)
         const textSizes = blocks.filter(b => !b.isMono).map(b => b.fontSize).sort((a, b) => a - b);
@@ -589,10 +590,17 @@
         }
 
         let sectionNum = 0;
+        let subNum = 0;
         body.forEach(section => {
             if (section.title) {
-                sectionNum++;
-                html += `<h3 class="section-title">${sectionNum}. ${esc(section.title)}</h3>\n`;
+                if (section.isSub) {
+                    subNum++;
+                    html += `<h4 class="subsection-title">${sectionNum}.${subNum} ${esc(section.title)}</h4>\n`;
+                } else {
+                    sectionNum++;
+                    subNum = 0;
+                    html += `<h3 class="section-title">${sectionNum}. ${esc(section.title)}</h3>\n`;
+                }
             }
 
             let prevType = null;
@@ -705,13 +713,16 @@ ${bodyHtml}
         }
 
         let sectionNum = 0;
+        let subNum = 0;
         body.forEach(section => {
             if (section.title) {
-                sectionNum++;
                 if (section.isSub) {
-                    md += `### ${sectionNum} ${section.title}\n\n`;
+                    subNum++;
+                    md += `### ${sectionNum}.${subNum} ${section.title}\n\n`;
                 } else {
-                    md += `## ${sectionNum} ${section.title}\n\n`;
+                    sectionNum++;
+                    subNum = 0;
+                    md += `## ${sectionNum}. ${section.title}\n\n`;
                 }
             }
 
