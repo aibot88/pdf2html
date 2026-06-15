@@ -70,6 +70,7 @@
             <div class="tabs">
                 <button class="tab active" data-tab="preview">预览</button>
                 <button class="tab" data-tab="source">HTML 源码</button>
+                <button class="tab" data-tab="markdown">Markdown</button>
                 <button class="tab" data-tab="compare">对比</button>
             </div>
             <div class="tab-content">
@@ -83,6 +84,13 @@
                         <button id="btnDownloadWithAssets" class="btn btn-small">下载 (含资源)</button>
                     </div>
                     <pre><code id="htmlSource" class="language-html"></code></pre>
+                </div>
+                <div id="tabMarkdown" class="tab-pane">
+                    <div class="source-toolbar">
+                        <button id="btnCopyMd" class="btn btn-small">复制 Markdown</button>
+                        <button id="btnDownloadMd" class="btn btn-small">下载 .md</button>
+                    </div>
+                    <pre><code id="mdSource" class="language-markdown"></code></pre>
                 </div>
                 <div id="tabCompare" class="tab-pane">
                     <div class="compare-container">

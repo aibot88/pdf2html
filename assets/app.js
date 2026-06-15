@@ -21,6 +21,7 @@
 
     let currentPdf = null;
     let generatedHtml = '';
+    let generatedMd = '';
 
     // ======================== EVENT HANDLERS ========================
 
@@ -64,6 +65,12 @@
     $('#btnDownloadWithAssets').addEventListener('click', () => {
         downloadFile('converted_standalone.html', wrapStandaloneHtml(generatedHtml), 'text/html');
     });
+    $('#btnDownloadMd').addEventListener('click', () => {
+        downloadFile('converted.md', generatedMd, 'text/markdown');
+    });
+    $('#btnCopyMd').addEventListener('click', () => {
+        navigator.clipboard.writeText(generatedMd).then(() => showToast('Markdown 已复制'));
+    });
 
     function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
@@ -104,8 +111,9 @@
         updateProgress(55, '分析布局...');
         const structure = analyzeAllPages(allPagesData, layoutMode);
 
-        updateProgress(85, '生成 HTML...');
+        updateProgress(85, '生成 HTML & Markdown...');
         generatedHtml = buildHtml(structure, fontThreshold);
+        generatedMd = buildMarkdown(structure);
 
         updateProgress(100, '完成');
         const elapsed = Math.round(performance.now() - startTime);
@@ -114,6 +122,9 @@
         const srcEl = $('#htmlSource');
         srcEl.textContent = generatedHtml;
         hljs.highlightElement(srcEl);
+        const mdEl = $('#mdSource');
+        mdEl.textContent = generatedMd;
+        hljs.highlightElement(mdEl);
 
         stats.classList.remove('hidden');
         $('#statPages').textContent = pages.length;
@@ -675,7 +686,85 @@ ${bodyHtml}
 </html>`;
     }
 
-    // ======================== UTILITIES ========================
+    // ======================== MARKDOWN GENERATION ========================
+
+    function buildMarkdown(structure) {
+        const { title, authors, abstract, body, references } = structure;
+        let md = '';
+
+        if (title) {
+            md += `# ${title}\n\n`;
+        }
+
+        if (authors.length > 0) {
+            md += authors.join('  \n') + '\n\n';
+        }
+
+        if (abstract) {
+            md += `## Abstract\n\n${mergeParagraphs(abstract)}\n\n`;
+        }
+
+        let sectionNum = 0;
+        body.forEach(section => {
+            if (section.title) {
+                sectionNum++;
+                if (section.isSub) {
+                    md += `### ${sectionNum} ${section.title}\n\n`;
+                } else {
+                    md += `## ${sectionNum} ${section.title}\n\n`;
+                }
+            }
+
+            let codeBuffer = [];
+            let prevType = null;
+
+            section.content.forEach((item, idx) => {
+                if (item.type === 'code') {
+                    if (prevType !== 'code' && codeBuffer.length > 0) {
+                        md += codeBuffer.join('\n') + '\n\n';
+                        codeBuffer = [];
+                    }
+                    codeBuffer.push(item.text);
+                    prevType = 'code';
+                } else {
+                    if (prevType === 'code') {
+                        md += '```\n' + codeBuffer.join('\n') + '\n```\n\n';
+                        codeBuffer = [];
+                    }
+                    prevType = 'text';
+                    if (item.text.length > 3) {
+                        md += mergeParagraphs(item.text) + '\n\n';
+                    }
+                }
+            });
+            if (codeBuffer.length > 0) {
+                md += '```\n' + codeBuffer.join('\n') + '\n```\n\n';
+            }
+        });
+
+        if (references) {
+            md += '## References\n\n';
+            const refs = references.split('\n').filter(r => r.trim());
+            refs.forEach(ref => {
+                const trimmed = ref.trim();
+                if (trimmed) {
+                    md += `${mergeParagraphs(trimmed)}\n\n`;
+                }
+            });
+        }
+
+        return md.trim() + '\n';
+    }
+
+    function mergeParagraphs(text) {
+        // Merge soft line breaks: join lines that don't end with punctuation indicating paragraph end
+        // Remove meaningless line breaks within paragraphs
+        return text
+            .replace(/\s+/g, ' ')
+            .replace(/([a-z,;])\s*\n\s*/g, '$1 ')
+            .replace(/\n+/g, '\n\n')
+            .trim();
+    }
 
     function parsePageRange(input, maxPages) {
         if (!input || !input.trim()) {
@@ -743,6 +832,7 @@ ${bodyHtml}
     function resetAll() {
         currentPdf = null;
         generatedHtml = '';
+        generatedMd = '';
         controls.classList.add('hidden');
         results.classList.add('hidden');
         stats.classList.add('hidden');
